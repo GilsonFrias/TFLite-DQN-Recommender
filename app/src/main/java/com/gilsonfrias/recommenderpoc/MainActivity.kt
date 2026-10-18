@@ -30,6 +30,21 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.NavigationDrawerItemDefaults
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.rememberDrawerState
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.captionBarPadding
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -60,11 +75,15 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.BaselineShift
@@ -85,6 +104,12 @@ import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.sqrt
 
+enum class NavigationDrawerSection(val title: String) {
+    INFERENCE_TRAINING("Inference / Training"),
+    MODEL_UPDATE("Model update"),
+    ABOUT("About")
+}
+
 class MainActivity : ComponentActivity() {
 
     private var recommender = Recommender(this)
@@ -95,40 +120,115 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             MyApplicationTheme {
-                  val padding = 16.dp
-                  Scaffold(
-                      topBar = {
-                          TopAppBar(
-                              colors = topAppBarColors(
-                                  containerColor = MaterialTheme.colorScheme.primaryContainer,
-                                  titleContentColor = MaterialTheme.colorScheme.primary,
-                              ),
-                              title = {
-                                  Text("In-App Recommendation Test")
-                              }
-                          )
-                      }
-                  ) {innerPadding ->
-                      Column(
-                          modifier = Modifier
-                              .padding(innerPadding).fillMaxHeight(1f),
-                          verticalArrangement = Arrangement.spacedBy(20.dp),
-                          //verticalAlignment = Alignment.Bottom
-                      ) {
+                var selectedSection by remember { mutableStateOf(NavigationDrawerSection.INFERENCE_TRAINING) }
+                val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+                val scope = rememberCoroutineScope()
 
-                          AppFeaturesArrangement("Current", 0)
-                          PopulateInputTextFields()
-                          HorizontalDivider(thickness = 1.dp)
-                          PopulatePredictionButton()
-                          //AppFeaturesArrangement("Current", 0)
-                          //PopulateInputTextFields()
-                          HorizontalDivider(thickness = 1.dp)
-                          PreviewMarkovChain()
-                          HorizontalDivider(thickness = 1.dp)
-                          PopulateOutputScrollView()
-                      }
-                  }
+                ModalNavigationDrawer(
+                    drawerState = drawerState,
+                    drawerContent = {
+                        ModalDrawerSheet {
+                            Column(
+                                modifier = Modifier
+                                    .padding(16.dp)
+                                    .fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = "Recommender POC",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = "Navigation Menu",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            HorizontalDivider()
+                            Spacer(modifier = Modifier.height(8.dp))
 
+                            NavigationDrawerItem(
+                                label = { Text("Inference / Training") },
+                                selected = selectedSection == NavigationDrawerSection.INFERENCE_TRAINING,
+                                onClick = {
+                                    selectedSection = NavigationDrawerSection.INFERENCE_TRAINING
+                                    scope.launch { drawerState.close() }
+                                },
+                                icon = { Icon(Icons.Default.PlayArrow, contentDescription = "Inference / Training") },
+                                modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                            )
+
+                            NavigationDrawerItem(
+                                label = { Text("Model update") },
+                                selected = selectedSection == NavigationDrawerSection.MODEL_UPDATE,
+                                onClick = {
+                                    selectedSection = NavigationDrawerSection.MODEL_UPDATE
+                                    scope.launch { drawerState.close() }
+                                },
+                                icon = { Icon(Icons.Default.Refresh, contentDescription = "Model update") },
+                                modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                            )
+
+                            NavigationDrawerItem(
+                                label = { Text("About") },
+                                selected = selectedSection == NavigationDrawerSection.ABOUT,
+                                onClick = {
+                                    selectedSection = NavigationDrawerSection.ABOUT
+                                    scope.launch { drawerState.close() }
+                                },
+                                icon = { Icon(Icons.Default.Info, contentDescription = "About") },
+                                modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                            )
+                        }
+                    }
+                ) {
+                    Scaffold(
+                        topBar = {
+                            TopAppBar(
+                                colors = topAppBarColors(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    titleContentColor = MaterialTheme.colorScheme.primary,
+                                ),
+                                title = {
+                                    Text(selectedSection.title)
+                                },
+                                navigationIcon = {
+                                    IconButton(
+                                        onClick = {
+                                            scope.launch {
+                                                if (drawerState.isClosed) drawerState.open() else drawerState.close()
+                                            }
+                                        }
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Menu,
+                                            contentDescription = "Open navigation drawer"
+                                        )
+                                    }
+                                }
+                            )
+                        }
+                    ) { innerPadding ->
+                        Box(
+                            modifier = Modifier
+                                .padding(innerPadding)
+                                .fillMaxSize()
+                        ) {
+                            when (selectedSection) {
+                                NavigationDrawerSection.INFERENCE_TRAINING -> {
+                                    InferenceTrainingContent()
+                                }
+                                NavigationDrawerSection.MODEL_UPDATE -> {
+                                    ModelUpdateContent()
+                                }
+                                NavigationDrawerSection.ABOUT -> {
+                                    AboutContent()
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
         recommender
@@ -152,6 +252,162 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         recommender.close()
         super.onDestroy()
+    }
+}
+
+@Composable
+fun InferenceTrainingContent() {
+    Column(
+        modifier = Modifier
+            .fillMaxHeight(1f),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
+    ) {
+        AppFeaturesArrangement("Current", 0)
+        PopulateInputTextFields()
+        HorizontalDivider(thickness = 1.dp)
+        PopulatePredictionButton()
+        HorizontalDivider(thickness = 1.dp)
+        PreviewMarkovChain()
+        HorizontalDivider(thickness = 1.dp)
+        //PopulateOutputScrollView()
+    }
+}
+
+@Composable
+fun ModelUpdateContent() {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        horizontalAlignment = Alignment.Start
+    ) {
+        Text(
+            text = "Model Management & Updates",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "Active TFLite Model",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "File: recommendation_0.1.0-alpha.tflite",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontFamily = FontFamily.Monospace
+                )
+                Text(
+                    text = "Status: Loaded & Operational",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0xFF2E7D32),
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Button(
+            onClick = { /* Check for updates */ },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(Icons.Default.Refresh, contentDescription = null)
+            Spacer(modifier = Modifier.size(8.dp))
+            Text("Check for Online Model Updates")
+        }
+
+        OutlinedButton(
+            onClick = { /* Import local model */ },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Import Local Model (.tflite)")
+        }
+    }
+}
+
+@Composable
+fun AboutContent() {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Box(
+            modifier = Modifier
+                .size(80.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primaryContainer),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.Info,
+                contentDescription = null,
+                modifier = Modifier.size(48.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+        }
+
+        Text(
+            text = "In-App Recommender POC",
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
+
+        Text(
+            text = "Version 1.0.0-alpha",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+        Text(
+            text = "This Proof of Concept demonstrates an on-device machine learning recommender engine using TensorFlow Lite and Markov Chains to predict next-step user actions.",
+            style = MaterialTheme.typography.bodyLarge,
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "System Stack:",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                Text("• Jetpack Compose & Material 3", style = MaterialTheme.typography.bodySmall)
+                Text("• TensorFlow Lite Runtime 2.17.0", style = MaterialTheme.typography.bodySmall)
+                Text("• Markov Chain State Graph Visualization", style = MaterialTheme.typography.bodySmall)
+            }
+        }
     }
 }
 
@@ -200,7 +456,7 @@ fun PopulateInputTextFields() {
                 .weight(1f)
                 .background(lightGray)
         ){
-            PopulateDropdownMenu(label="DOM")
+            PopulateDropdownMenu(label="DOM", minValue = 1, maxValue = 32)
         }
         TextField(
             modifier = Modifier
@@ -240,7 +496,7 @@ fun PopulateInputTextFields() {
                 .weight(1f)
                 .background(Color(0XFFEEEEEE))
         ){
-            PopulateDropdownMenu(label="action")
+            PopulateDropdownMenu(label="action", minValue = 0, maxValue = 9)
         }
     }
 }
@@ -249,7 +505,7 @@ fun PopulateInputTextFields() {
 @Composable
 fun PopulateDropdownMenu(label: String, minValue: Int = 0, maxValue: Int = 31   ) {
     var expanded by remember { mutableStateOf(false) }
-    val domList = List(size=maxValue) { "${it + minValue}" }
+    val domList = List(size=maxValue+1) { "${it + minValue}" }
     var selectedDOM by remember { mutableStateOf(domList[0]) }
     Row(
 
@@ -349,33 +605,240 @@ fun PopulatePredictionButton() {
                 .weight(0.5f)
                 .background(lightGray)
         ) {
-            PopulateDropdownMenu(label="Expected next action")
+            PopulateDropdownMenu(label="Expected next action", minValue = 0, maxValue = 9)
         }
     }
 }
 
 @Composable
 fun PopulateOutputScrollView() {
+    val scrollState = rememberScrollState()
+
     Column(
         modifier = Modifier
-            .background(Color(0xFF9C8F80))
             .fillMaxWidth()
             .fillMaxHeight(1f)
-            .verticalScroll(rememberScrollState())
-    ){
-        repeat(15) {
-            Text("Item $it", modifier = Modifier.padding(2.dp))
+            .padding(8.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color(0xFF1E1E1E))
+    ) {
+        // Terminal Window Header Bar
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFF2D2D2D))
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(10.dp)
+                    .background(Color(0xFFFF5F56), shape = CircleShape)
+            )
+            Box(
+                modifier = Modifier
+                    .padding(start = 6.dp)
+                    .size(10.dp)
+                    .background(Color(0xFFFFBD2E), shape = CircleShape)
+            )
+            Box(
+                modifier = Modifier
+                    .padding(start = 6.dp)
+                    .size(10.dp)
+                    .background(Color(0xFF27C93F), shape = CircleShape)
+            )
+
+            Text(
+                text = "bash — user@recommender-poc: ~",
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 12.dp),
+                color = Color(0xFFB0B0B0),
+                fontSize = 12.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Medium
+            )
+        }
+
+        // Terminal Content Screen
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .background(Color(0xFF0C0C0C))
+                .padding(12.dp)
+                .verticalScroll(scrollState),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            val greenColor = Color(0xFF4AF626)
+            val cyanColor = Color(0xFF00E5FF)
+            val yellowColor = Color(0xFFFFD600)
+            val lightGray = Color(0xFFCCCCCC)
+            val promptCursorColor = Color(0xFF39FF14)
+
+            Text(
+                text = buildAnnotatedString {
+                    withStyle(SpanStyle(color = greenColor, fontWeight = FontWeight.Bold)) {
+                        append("user@recommender-poc")
+                    }
+                    withStyle(SpanStyle(color = lightGray)) {
+                        append(":")
+                    }
+                    withStyle(SpanStyle(color = cyanColor, fontWeight = FontWeight.Bold)) {
+                        append("~")
+                    }
+                    withStyle(SpanStyle(color = lightGray)) {
+                        append("$ systemctl status recommender.service")
+                    }
+                },
+                fontFamily = FontFamily.Monospace,
+                fontSize = 12.sp
+            )
+
+            Text(
+                text = "● recommender.service - ML In-App Recommender Engine\n" +
+                       "   Loaded: loaded (/etc/systemd/system/recommender.service)\n" +
+                       "   Active: active (running) since " + SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date()) + "\n" +
+                       "   Main PID: 4092 (tflite_engine)\n" +
+                       "   Tasks: 4 (limit: 4915)\n" +
+                       "   Memory: 42.5M",
+                color = Color(0xFFAAAAAA),
+                fontFamily = FontFamily.Monospace,
+                fontSize = 12.sp
+            )
+
+            Text(
+                text = buildAnnotatedString {
+                    withStyle(SpanStyle(color = greenColor, fontWeight = FontWeight.Bold)) {
+                        append("user@recommender-poc")
+                    }
+                    withStyle(SpanStyle(color = lightGray)) {
+                        append(":")
+                    }
+                    withStyle(SpanStyle(color = cyanColor, fontWeight = FontWeight.Bold)) {
+                        append("~")
+                    }
+                    withStyle(SpanStyle(color = lightGray)) {
+                        append("$ recommender --init")
+                    }
+                },
+                fontFamily = FontFamily.Monospace,
+                fontSize = 12.sp
+            )
+
+            Text(
+                text = "[INFO] Loading model: recommendation_0.1.0-alpha.tflite\n" +
+                       "[INFO] Input Tensor [1, 4] DType: STRING\n" +
+                       "[INFO] Output Tensor [1, 2] DType: FLOAT32\n" +
+                       "[SUCCESS] Interpreter initialized successfully.",
+                color = yellowColor,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 12.sp
+            )
+
+            Text(
+                text = buildAnnotatedString {
+                    withStyle(SpanStyle(color = greenColor, fontWeight = FontWeight.Bold)) {
+                        append("user@recommender-poc")
+                    }
+                    withStyle(SpanStyle(color = lightGray)) {
+                        append(":")
+                    }
+                    withStyle(SpanStyle(color = cyanColor, fontWeight = FontWeight.Bold)) {
+                        append("~")
+                    }
+                    withStyle(SpanStyle(color = lightGray)) {
+                        append("$ recommender --classify --input '31:Dashboard:FLAT, Account_Details'")
+                    }
+                },
+                fontFamily = FontFamily.Monospace,
+                fontSize = 12.sp
+            )
+
+            Text(
+                text = "[CLASSIFY] Feature vector preprocessed.\n" +
+                       "[CLASSIFY] Inference executed in 3.4ms.\n" +
+                       "[PREDICTION] Top action: S2 (Payment Rent), prob=0.82\n" +
+                       "[PREDICTION] Secondary action: S1 (App Login), prob=0.15",
+                color = cyanColor,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 12.sp
+            )
+
+            repeat(8) { idx ->
+                Text(
+                    text = buildAnnotatedString {
+                        withStyle(SpanStyle(color = greenColor, fontWeight = FontWeight.Bold)) {
+                            append("user@recommender-poc")
+                        }
+                        withStyle(SpanStyle(color = lightGray)) {
+                            append(":")
+                        }
+                        withStyle(SpanStyle(color = cyanColor, fontWeight = FontWeight.Bold)) {
+                            append("~")
+                        }
+                        withStyle(SpanStyle(color = lightGray)) {
+                            append("$ log --tail -n 1 #${idx + 1}")
+                        }
+                    },
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 12.sp
+                )
+                Text(
+                    text = "  [LOG ${idx + 1}] Transition trace recorded: S0 -> S${(idx % 9) + 1}",
+                    color = lightGray,
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 12.sp
+                )
+            }
+
+            Text(
+                text = buildAnnotatedString {
+                    withStyle(SpanStyle(color = greenColor, fontWeight = FontWeight.Bold)) {
+                        append("user@recommender-poc")
+                    }
+                    withStyle(SpanStyle(color = lightGray)) {
+                        append(":")
+                    }
+                    withStyle(SpanStyle(color = cyanColor, fontWeight = FontWeight.Bold)) {
+                        append("~")
+                    }
+                    withStyle(SpanStyle(color = lightGray)) {
+                        append("$ ")
+                    }
+                    withStyle(SpanStyle(color = promptCursorColor)) {
+                        append("█")
+                    }
+                },
+                fontFamily = FontFamily.Monospace,
+                fontSize = 12.sp
+            )
         }
     }
 }
 
 
 // 1. Data Models for States and Transitions
+enum class MarkovStateEnum(val id: String, val stateName: String) {
+    S0("S0", "As(t+0)"),
+    S1("S1", "App \nLogin"),
+    S2("S2", "Payment \nRent"),
+    S3("S3", "Payment \nLoan"),
+    S4("S4", "Payment \nElectricity"),
+    S5("S5", "Payment \nInternet"),
+    S6("S6", "Payment \nPhone"),
+    S7("S7", "Payment \nNetflix"),
+    S8("S8", "Payment \nWater"),
+    S9("S9", "Payment \nPurchases")
+}
+
 data class MarkovState(
     val id: String,
     val name: String,
     val position: Offset // Pre-defined position or calculated layout
-)
+) {
+    constructor(stateEnum: MarkovStateEnum, position: Offset) : this(stateEnum.id, stateEnum.stateName, position)
+}
 
 data class MarkovTransition(
     val fromStateId: String,
@@ -392,7 +855,7 @@ fun MarkovChainGraph(
     val textMeasurer = rememberTextMeasurer()
 
     // Zoom and pan state
-    var scale by remember { mutableStateOf(1f) }
+    var scale by remember { mutableStateOf(0.8f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
 
     Box(
@@ -610,17 +1073,37 @@ private fun DrawScope.drawSelfLoop(
 }
 
 @Composable
-fun PreviewMarkovChain() {
+fun PreviewMarkovChain(currentState: String = "S1", nextState: String = "S2") {
+    /*
+    'Dashboard', 'BENEF_INTERBANK_PAYMENT:RENT',
+    'BENEF_INTERBANK_PAYMENT:FINANCIAMIENTO',
+    'SERVICE_PAYMENT:ELECTRICITY', 'SERVICE_PAYMENT:INTERNET',
+    'SERVICE_PAYMENT:PHONE', 'SERVICE_PAYMENT:NETFLIX',
+    'SERVICE_PAYMENT:WATER', 'PAYMENT_EXPRESS:PURCHASES'],
+     */
     val sampleStates = listOf(
-        MarkovState("S1", "Sunny", Offset(200f, 500f)),
-        MarkovState("S2", "Rainy", Offset(700f, 500f))
+        MarkovState(MarkovStateEnum.S0, Offset(200f, 550f)),
+        MarkovState(MarkovStateEnum.S1, Offset(350f, 100f)),
+        MarkovState(MarkovStateEnum.S2, Offset(600f, 100f)),
+        MarkovState(MarkovStateEnum.S3, Offset(850f, 150f)),
+        MarkovState(MarkovStateEnum.S4, Offset(1050f, 300f)),
+        MarkovState(MarkovStateEnum.S5, Offset(1050f, 550f)),
+        MarkovState(MarkovStateEnum.S6, Offset(1050f, 800f)),
+        MarkovState(MarkovStateEnum.S7, Offset(850f, 950f)),
+        MarkovState(MarkovStateEnum.S8, Offset(600f, 1000f)),
+        MarkovState(MarkovStateEnum.S9, Offset(350f, 1000f))
     )
 
     val sampleTransitions = listOf(
-        MarkovTransition("S1", "S1", 0.8f),  // Sunny stays Sunny
-        MarkovTransition("S1", "S2", 0.2f),  // Sunny turns Rainy
-        MarkovTransition("S2", "S1", 0.6f),  // Rainy turns Sunny
-        MarkovTransition("S2", "S2", 0.4f)   // Rainy stays Rainy
+        MarkovTransition(MarkovStateEnum.S0.id, MarkovStateEnum.S1.id, 0.2f),
+        MarkovTransition(MarkovStateEnum.S0.id, MarkovStateEnum.S2.id, 0.6f),
+        MarkovTransition(MarkovStateEnum.S0.id, MarkovStateEnum.S3.id, 0.4f),
+        MarkovTransition(MarkovStateEnum.S0.id, MarkovStateEnum.S4.id, 0.8f),
+        MarkovTransition(MarkovStateEnum.S0.id, MarkovStateEnum.S5.id, 0.2f),
+        MarkovTransition(MarkovStateEnum.S0.id, MarkovStateEnum.S6.id, 0.6f),
+        MarkovTransition(MarkovStateEnum.S0.id, MarkovStateEnum.S7.id, 0.4f),
+        MarkovTransition(MarkovStateEnum.S0.id, MarkovStateEnum.S8.id, 0.8f),
+        MarkovTransition(MarkovStateEnum.S0.id, MarkovStateEnum.S9.id, 0.2f),
     )
 
     MarkovChainGraph(states = sampleStates, transitions = sampleTransitions)
