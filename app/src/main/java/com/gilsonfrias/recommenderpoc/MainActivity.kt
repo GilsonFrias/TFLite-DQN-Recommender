@@ -94,6 +94,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.input.KeyboardType
 import com.gilsonfrias.recommenderpoc.ui.theme.MyApplicationTheme
 import android.util.Log
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.TextFieldColors
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.res.painterResource
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.text.SimpleDateFormat
@@ -123,6 +130,10 @@ class MainActivity : ComponentActivity() {
                 var selectedSection by remember { mutableStateOf(NavigationDrawerSection.INFERENCE_TRAINING) }
                 val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
                 val scope = rememberCoroutineScope()
+                val dom by remember { mutableStateOf(1) }
+                val currentAction by remember { mutableStateOf(0) }
+                val savingsState by remember { mutableStateOf(2) }
+                val checkingState by remember { mutableStateOf(2) }
 
                 ModalNavigationDrawer(
                     drawerState = drawerState,
@@ -234,7 +245,8 @@ class MainActivity : ComponentActivity() {
         recommender
             .initialize()
             .addOnFailureListener { e -> Log.e("[MainActivity:onCreate]", "Error initializing recommender instance") }
-        val input = arrayOf<String>("31:Dashboard:FLAT","Account_Details", "13:PAYMENT_EXPRESS:PURCHASES:NEGATIVE", "BENEF_INTERBANK_PAYMENT:RENT")
+        //val input = arrayOf<String>("31:Dashboard:FLAT","Account_Details", "13:PAYMENT_EXPRESS:PURCHASES:NEGATIVE", "BENEF_INTERBANK_PAYMENT:RENT")
+        val input = arrayOf<Float>(15.0F, 2.0F, 2.0F, 0.0F, 0.0F, 0.0F)
         recommender.classify(input)
     }
 
@@ -269,7 +281,7 @@ fun InferenceTrainingContent() {
         HorizontalDivider(thickness = 1.dp)
         PreviewMarkovChain()
         HorizontalDivider(thickness = 1.dp)
-        //PopulateOutputScrollView()
+        PopulateTrainingButton()
     }
 }
 
@@ -437,70 +449,92 @@ fun AppFeaturesArrangement(appState: String, t: Int) {
 
 @Composable
 fun PopulateInputTextFields() {
-    val digitsPattern = remember { Regex("^\\d*\$") }
-    var textInputSavings by remember { mutableStateOf("500.00")}
-    var textInputChecking by remember { mutableStateOf("500.00")}
+    val digitsPattern = remember { Regex("^\\d*\\.?\\d*$") }
+    var textInputSavings by remember { mutableStateOf("500.00") }
+    var textInputChecking by remember { mutableStateOf("500.00") }
+    var savingsLabelConfig by remember { mutableStateOf(GetAmountLabelConfig("500.00", "500.00")) }
+    var checkingLabelConfig by remember { mutableStateOf(GetAmountLabelConfig("500.00", "500.00")) }
     val lightGray = Color(0XFFEEEEEE)
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(60.dp),
-        //    .fillMaxHeight(0.1f),
-        //    .padding(30.dp),
-
-        //horizontalArrangement = Arrangement.spacedBy(5.dp)
+            .height(60.dp)
     ) {
         Box(
             modifier = Modifier
                 .fillMaxHeight(1f)
-                .weight(1f)
+                .weight(0.25f)
                 .background(lightGray)
-        ){
-            PopulateDropdownMenu(label="DOM", minValue = 1, maxValue = 32)
+        ) {
+            PopulateDropdownMenu(label = "DOM", minValue = 1, maxValue = 32)
         }
         TextField(
             modifier = Modifier
                 .fillMaxHeight(1f)
-                .weight(1f)
-                .background(Color(0XFFEEEEEE)),
+                .weight(0.33f)
+                .background(lightGray),
             value = textInputSavings,
-            onValueChange = {newValue ->
+            onValueChange = { newValue ->
                 if (newValue.isEmpty() || newValue.matches(digitsPattern)) {
+                    savingsLabelConfig = GetAmountLabelConfig(newValue, textInputSavings)
                     textInputSavings = newValue
                 }
             },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             label = {
-                Text("SAVINGS")
+                Text(
+                    text = "SAVINGS ${savingsLabelConfig.first}",
+                    color = savingsLabelConfig.second,
+                )
             }
         )
         TextField(
             modifier = Modifier
                 .fillMaxHeight(1f)
-                .weight(1f)
-                .background(Color(0XFFEEEEEE)),
+                .weight(0.33f)
+                .background(lightGray),
             value = textInputChecking,
-            onValueChange = {newValue ->
+            onValueChange = { newValue ->
                 if (newValue.isEmpty() || newValue.matches(digitsPattern)) {
+                    checkingLabelConfig = GetAmountLabelConfig(newValue, textInputChecking)
                     textInputChecking = newValue
                 }
             },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             label = {
-                Text("CHECKING")
+                Text(
+                    text = "CHECK ${checkingLabelConfig.first}",
+                    color = checkingLabelConfig.second
+                )
             }
         )
         Box(
             modifier = Modifier
                 .fillMaxHeight(1f)
-                .weight(1f)
-                .background(Color(0XFFEEEEEE))
-        ){
-            PopulateDropdownMenu(label="action", minValue = 0, maxValue = 9)
+                .weight(0.25f)
+                //.width(0.20f)
+                .background(lightGray)
+        ) {
+            PopulateDropdownMenu(label = "act", minValue = 0, maxValue = 9)
         }
     }
 }
 
+fun GetAmountLabelConfig(currentValue: String, previousValue: String) : Pair<String, Color> {
+    val current = currentValue.toDoubleOrNull()
+    val previous = previousValue.toDoubleOrNull()
+    if (current != null && previous != null) {
+        if (current > previous) {
+            return Pair("▲", Color(0xFF2E7D32))
+        } else if (current < previous) {
+            return Pair("▼", Color(0xFFFF0000))
+        } else {
+            return Pair("➖", Color(0xFF757575))
+        }
+    }
+    return Pair("➖", Color(0xFF757575))
+}
 
 @Composable
 fun PopulateDropdownMenu(label: String, minValue: Int = 0, maxValue: Int = 31   ) {
@@ -609,214 +643,6 @@ fun PopulatePredictionButton() {
         }
     }
 }
-
-@Composable
-fun PopulateOutputScrollView() {
-    val scrollState = rememberScrollState()
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .fillMaxHeight(1f)
-            .padding(8.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(Color(0xFF1E1E1E))
-    ) {
-        // Terminal Window Header Bar
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Color(0xFF2D2D2D))
-                .padding(horizontal = 12.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(10.dp)
-                    .background(Color(0xFFFF5F56), shape = CircleShape)
-            )
-            Box(
-                modifier = Modifier
-                    .padding(start = 6.dp)
-                    .size(10.dp)
-                    .background(Color(0xFFFFBD2E), shape = CircleShape)
-            )
-            Box(
-                modifier = Modifier
-                    .padding(start = 6.dp)
-                    .size(10.dp)
-                    .background(Color(0xFF27C93F), shape = CircleShape)
-            )
-
-            Text(
-                text = "bash — user@recommender-poc: ~",
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(start = 12.dp),
-                color = Color(0xFFB0B0B0),
-                fontSize = 12.sp,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Medium
-            )
-        }
-
-        // Terminal Content Screen
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .background(Color(0xFF0C0C0C))
-                .padding(12.dp)
-                .verticalScroll(scrollState),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            val greenColor = Color(0xFF4AF626)
-            val cyanColor = Color(0xFF00E5FF)
-            val yellowColor = Color(0xFFFFD600)
-            val lightGray = Color(0xFFCCCCCC)
-            val promptCursorColor = Color(0xFF39FF14)
-
-            Text(
-                text = buildAnnotatedString {
-                    withStyle(SpanStyle(color = greenColor, fontWeight = FontWeight.Bold)) {
-                        append("user@recommender-poc")
-                    }
-                    withStyle(SpanStyle(color = lightGray)) {
-                        append(":")
-                    }
-                    withStyle(SpanStyle(color = cyanColor, fontWeight = FontWeight.Bold)) {
-                        append("~")
-                    }
-                    withStyle(SpanStyle(color = lightGray)) {
-                        append("$ systemctl status recommender.service")
-                    }
-                },
-                fontFamily = FontFamily.Monospace,
-                fontSize = 12.sp
-            )
-
-            Text(
-                text = "● recommender.service - ML In-App Recommender Engine\n" +
-                       "   Loaded: loaded (/etc/systemd/system/recommender.service)\n" +
-                       "   Active: active (running) since " + SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date()) + "\n" +
-                       "   Main PID: 4092 (tflite_engine)\n" +
-                       "   Tasks: 4 (limit: 4915)\n" +
-                       "   Memory: 42.5M",
-                color = Color(0xFFAAAAAA),
-                fontFamily = FontFamily.Monospace,
-                fontSize = 12.sp
-            )
-
-            Text(
-                text = buildAnnotatedString {
-                    withStyle(SpanStyle(color = greenColor, fontWeight = FontWeight.Bold)) {
-                        append("user@recommender-poc")
-                    }
-                    withStyle(SpanStyle(color = lightGray)) {
-                        append(":")
-                    }
-                    withStyle(SpanStyle(color = cyanColor, fontWeight = FontWeight.Bold)) {
-                        append("~")
-                    }
-                    withStyle(SpanStyle(color = lightGray)) {
-                        append("$ recommender --init")
-                    }
-                },
-                fontFamily = FontFamily.Monospace,
-                fontSize = 12.sp
-            )
-
-            Text(
-                text = "[INFO] Loading model: recommendation_0.1.0-alpha.tflite\n" +
-                       "[INFO] Input Tensor [1, 4] DType: STRING\n" +
-                       "[INFO] Output Tensor [1, 2] DType: FLOAT32\n" +
-                       "[SUCCESS] Interpreter initialized successfully.",
-                color = yellowColor,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 12.sp
-            )
-
-            Text(
-                text = buildAnnotatedString {
-                    withStyle(SpanStyle(color = greenColor, fontWeight = FontWeight.Bold)) {
-                        append("user@recommender-poc")
-                    }
-                    withStyle(SpanStyle(color = lightGray)) {
-                        append(":")
-                    }
-                    withStyle(SpanStyle(color = cyanColor, fontWeight = FontWeight.Bold)) {
-                        append("~")
-                    }
-                    withStyle(SpanStyle(color = lightGray)) {
-                        append("$ recommender --classify --input '31:Dashboard:FLAT, Account_Details'")
-                    }
-                },
-                fontFamily = FontFamily.Monospace,
-                fontSize = 12.sp
-            )
-
-            Text(
-                text = "[CLASSIFY] Feature vector preprocessed.\n" +
-                       "[CLASSIFY] Inference executed in 3.4ms.\n" +
-                       "[PREDICTION] Top action: S2 (Payment Rent), prob=0.82\n" +
-                       "[PREDICTION] Secondary action: S1 (App Login), prob=0.15",
-                color = cyanColor,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 12.sp
-            )
-
-            repeat(8) { idx ->
-                Text(
-                    text = buildAnnotatedString {
-                        withStyle(SpanStyle(color = greenColor, fontWeight = FontWeight.Bold)) {
-                            append("user@recommender-poc")
-                        }
-                        withStyle(SpanStyle(color = lightGray)) {
-                            append(":")
-                        }
-                        withStyle(SpanStyle(color = cyanColor, fontWeight = FontWeight.Bold)) {
-                            append("~")
-                        }
-                        withStyle(SpanStyle(color = lightGray)) {
-                            append("$ log --tail -n 1 #${idx + 1}")
-                        }
-                    },
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 12.sp
-                )
-                Text(
-                    text = "  [LOG ${idx + 1}] Transition trace recorded: S0 -> S${(idx % 9) + 1}",
-                    color = lightGray,
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 12.sp
-                )
-            }
-
-            Text(
-                text = buildAnnotatedString {
-                    withStyle(SpanStyle(color = greenColor, fontWeight = FontWeight.Bold)) {
-                        append("user@recommender-poc")
-                    }
-                    withStyle(SpanStyle(color = lightGray)) {
-                        append(":")
-                    }
-                    withStyle(SpanStyle(color = cyanColor, fontWeight = FontWeight.Bold)) {
-                        append("~")
-                    }
-                    withStyle(SpanStyle(color = lightGray)) {
-                        append("$ ")
-                    }
-                    withStyle(SpanStyle(color = promptCursorColor)) {
-                        append("█")
-                    }
-                },
-                fontFamily = FontFamily.Monospace,
-                fontSize = 12.sp
-            )
-        }
-    }
-}
-
 
 // 1. Data Models for States and Transitions
 enum class MarkovStateEnum(val id: String, val stateName: String) {
@@ -1107,5 +933,94 @@ fun PreviewMarkovChain(currentState: String = "S1", nextState: String = "S2") {
     )
 
     MarkovChainGraph(states = sampleStates, transitions = sampleTransitions)
+}
+
+@Composable
+fun PopulateTrainingButton() {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed = interactionSource.collectIsPressedAsState().value
+    val backgroundColor = if (isPressed) Color.Red else Color.Blue
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.Bottom
+    ) {
+        Column(
+            modifier = Modifier.weight(0.32f),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            /*
+            Image(
+                painter = painterResource(id = R.drawable.database_24px),
+                contentDescription = "Memory-Replay-Icon",
+                colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary),
+                modifier = Modifier.size(15.dp)
+            )
+             */
+            TextField(
+                modifier = Modifier.fillMaxWidth(),
+                value = "3/5",
+                onValueChange = {},
+                readOnly = true,
+                singleLine = true,
+                label = {
+                    Text(
+                        text = "Replay memory size",
+                        fontSize = 11.sp
+                    )
+                }
+            )
+        }
+
+        Column(
+            modifier = Modifier.weight(0.32f),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            /*
+            Image(
+                painter = painterResource(id = R.drawable.leaderboard_24px),
+                contentDescription = "Reward-Function-Icon",
+                colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.primary),
+                modifier = Modifier.size(15.dp)
+            )
+             */
+            TextField(
+                modifier = Modifier.fillMaxWidth(),
+                value = "0.1",
+                onValueChange = {},
+                readOnly = true,
+                singleLine = true,
+                label = {
+                    Text(
+                        text = "Current episode reward",
+                        fontSize = 11.sp
+                    )
+                }
+            )
+        }
+
+        Button(
+            onClick = {},
+            interactionSource = interactionSource,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = backgroundColor
+            ),
+            modifier = Modifier
+                .weight(0.36f)
+                .height(56.dp)
+        ) {
+            Text(
+                textAlign = TextAlign.Center,
+                text = buildAnnotatedString {
+                    append("Train DQN model")
+                }
+            )
+        }
+    }
 }
 

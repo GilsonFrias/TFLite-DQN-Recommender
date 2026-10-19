@@ -3,7 +3,6 @@ package com.gilsonfrias.recommenderpoc
 import android.content.Context
 import android.content.res.AssetManager
 import android.util.Log
-import com.google.android.gms.common.internal.CallbackExecutor.executorService
 import com.google.android.gms.tasks.Task
 import com.google.android.gms.tasks.TaskCompletionSource
 import org.tensorflow.lite.Interpreter
@@ -37,7 +36,7 @@ class Recommender(private val context: Context){
     @Throws(IOException::class)
     private fun initializeInterpreter() {
         val assetManager = context.assets
-        val model = loadModelFile(assetManager, "recommendation_0.1.0-alpha.tflite")
+        val model = loadModelFile(assetManager, "sig_dqn_model.tflite")
         val interpreter = Interpreter(model)
         val inputShape = interpreter.getInputTensor(0).shape()
         val inputDtype = interpreter.getInputTensor(0).dataType()
@@ -52,15 +51,23 @@ class Recommender(private val context: Context){
         Log.d("[Recommender:initializeInterpreter]", "Initialized TF interpreter")
     }
 
-    fun classify(input: Array<String>): Float {
-        val output = Array(1) { FloatArray(2) }
-        //val outputs = mutableMapOf<Int, Any>(0 to output)
-        //val inp = arrayOf(1000, 500)
-        interpreter?.run(input, output)
-        //interpreter?.runForMultipleInputsOutputs(input, output as Map<Int?, Any?>)
+    fun classify(input: Array<Float>): FloatArray {
+        return classify(input.toFloatArray())
+    }
+
+    fun classify(input: FloatArray): FloatArray {
+        val interpreter = this.interpreter
+        if (interpreter == null) {
+            Log.e("[Recommender:classify]", "Interpreter is not initialized")
+            return floatArrayOf()
+        }
+        // Tensor shape for sig_dqn_model is [1, 6] FLOAT32 for input and [1, 9] FLOAT32 for output
+        val input2D = arrayOf(input)
+        val output = Array(1) { FloatArray(9) }
+        interpreter.run(input2D, output)
         val result = output[0]
-        Log.d("Result::", "${result.contentToString()}")
-        return 0.0.toFloat()
+        Log.d("[Recommender:classify]", "Result Q-values: ${result.contentToString()}")
+        return result
     }
 
     fun createStringByteBuffer(text: String): ByteBuffer {
