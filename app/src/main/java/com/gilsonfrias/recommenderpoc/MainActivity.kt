@@ -1,6 +1,5 @@
 package com.gilsonfrias.recommenderpoc
 
-import android.R.attr.text
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -25,7 +24,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -45,24 +43,18 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
-import androidx.compose.foundation.layout.captionBarPadding
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.overscroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TextField
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -94,22 +86,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.input.KeyboardType
 import com.gilsonfrias.recommenderpoc.ui.theme.MyApplicationTheme
 import android.util.Log
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.width
-import androidx.compose.material3.TextFieldColors
-import androidx.compose.runtime.remember
-import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.painter.Painter
-import androidx.compose.ui.res.painterResource
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.sqrt
+import kotlin.text.toIntOrNull
+import androidx.compose.runtime.toMutableStateList
+import androidx.compose.runtime.snapshots.SnapshotStateList
 
 enum class NavigationDrawerSection(val title: String) {
     INFERENCE_TRAINING("Inference / Training"),
@@ -120,6 +105,7 @@ enum class NavigationDrawerSection(val title: String) {
 class MainActivity : ComponentActivity() {
 
     private var recommender = Recommender(this)
+    private var probabilities = buildTransitionProbabilities().toMutableStateList()
 
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -130,10 +116,10 @@ class MainActivity : ComponentActivity() {
                 var selectedSection by remember { mutableStateOf(NavigationDrawerSection.INFERENCE_TRAINING) }
                 val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
                 val scope = rememberCoroutineScope()
-                val dom by remember { mutableStateOf(1) }
-                val currentAction by remember { mutableStateOf(0) }
-                val savingsState by remember { mutableStateOf(2) }
-                val checkingState by remember { mutableStateOf(2) }
+                var dom by remember { mutableStateOf(1) }
+                var currentAction by remember { mutableStateOf(0) }
+                var savingsState by remember { mutableStateOf(2) }
+                var checkingState by remember { mutableStateOf(2) }
 
                 ModalNavigationDrawer(
                     drawerState = drawerState,
@@ -228,7 +214,18 @@ class MainActivity : ComponentActivity() {
                         ) {
                             when (selectedSection) {
                                 NavigationDrawerSection.INFERENCE_TRAINING -> {
-                                    InferenceTrainingContent()
+                                    InferenceTrainingContent(
+                                        recommender = recommender,
+                                        probabilities = probabilities,
+                                        dom = dom,
+                                        currentAction = currentAction,
+                                        savingsState = savingsState,
+                                        checkingState = checkingState,
+                                        onDomChange = { dom = it },
+                                        onCurrentActionChange = { currentAction = it },
+                                        onSavingsStateChange = { savingsState = it },
+                                        onCheckingStateChange = { checkingState = it }
+                                    )
                                 }
                                 NavigationDrawerSection.MODEL_UPDATE -> {
                                     ModelUpdateContent()
@@ -247,7 +244,7 @@ class MainActivity : ComponentActivity() {
             .addOnFailureListener { e -> Log.e("[MainActivity:onCreate]", "Error initializing recommender instance") }
         //val input = arrayOf<String>("31:Dashboard:FLAT","Account_Details", "13:PAYMENT_EXPRESS:PURCHASES:NEGATIVE", "BENEF_INTERBANK_PAYMENT:RENT")
         val input = arrayOf<Float>(15.0F, 2.0F, 2.0F, 0.0F, 0.0F, 0.0F)
-        recommender.classify(input)
+        recommender.predict(input)
     }
 
     fun createStringByteBuffer(text: String): ByteBuffer {
@@ -268,18 +265,45 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun InferenceTrainingContent() {
+fun InferenceTrainingContent(
+    recommender: Recommender? = null,
+    probabilities: List<TransitionProbabilities> = remember { buildTransitionProbabilities().toMutableStateList() },
+    dom: Int = 1,
+    currentAction: Int = 3,
+    savingsState: Int = 2,
+    checkingState: Int = 2,
+    onDomChange: (Int) -> Unit = {},
+    onCurrentActionChange: (Int) -> Unit = {},
+    onSavingsStateChange: (Int) -> Unit = {},
+    onCheckingStateChange: (Int) -> Unit = {}
+) {
     Column(
         modifier = Modifier
             .fillMaxHeight(1f),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         AppFeaturesArrangement("Current", 0)
-        PopulateInputTextFields()
+        PopulateInputTextFields(
+            dom = dom,
+            onDomChange = onDomChange,
+            currentAction = currentAction,
+            onCurrentActionChange = onCurrentActionChange,
+            savingsState = savingsState,
+            onSavingsStateChange = onSavingsStateChange,
+            checkingState = checkingState,
+            onCheckingStateChange = onCheckingStateChange
+        )
         HorizontalDivider(thickness = 1.dp)
-        PopulatePredictionButton()
+        PopulatePredictionButton(
+            recommender = recommender,
+            probabilities = probabilities,
+            dom = dom,
+            currentAction = currentAction,
+            savingsState = savingsState,
+            checkingState = checkingState
+        )
         HorizontalDivider(thickness = 1.dp)
-        PreviewMarkovChain()
+        PreviewMarkovChain(currentState = currentAction, probabilities = probabilities)
         HorizontalDivider(thickness = 1.dp)
         PopulateTrainingButton()
     }
@@ -448,7 +472,16 @@ fun AppFeaturesArrangement(appState: String, t: Int) {
 }
 
 @Composable
-fun PopulateInputTextFields() {
+fun PopulateInputTextFields(
+    dom: Int = 1,
+    currentAction: Int = 1,
+    savingsState: Int = 1,
+    checkingState: Int = 2,
+    onSavingsStateChange: (Int) -> Unit = {},
+    onCheckingStateChange: (Int) -> Unit = {},
+    onDomChange: (Int) -> Unit = {},
+    onCurrentActionChange: (Int) -> Unit = {}
+) {
     val digitsPattern = remember { Regex("^\\d*\\.?\\d*$") }
     var textInputSavings by remember { mutableStateOf("500.00") }
     var textInputChecking by remember { mutableStateOf("500.00") }
@@ -467,7 +500,13 @@ fun PopulateInputTextFields() {
                 .weight(0.25f)
                 .background(lightGray)
         ) {
-            PopulateDropdownMenu(label = "DOM", minValue = 1, maxValue = 32)
+            PopulateDropdownMenu(
+                label = "DOM",
+                minValue = 1,
+                maxValue = 32,
+                selectedValue = dom.toString(),
+                onOptionSelected = onDomChange
+            )
         }
         TextField(
             modifier = Modifier
@@ -479,6 +518,9 @@ fun PopulateInputTextFields() {
                 if (newValue.isEmpty() || newValue.matches(digitsPattern)) {
                     savingsLabelConfig = GetAmountLabelConfig(newValue, textInputSavings)
                     textInputSavings = newValue
+                    newValue.toDoubleOrNull()?.toInt()?.let { intVal ->
+                        onSavingsStateChange.invoke(savingsLabelConfig.third)
+                    }
                 }
             },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -499,6 +541,9 @@ fun PopulateInputTextFields() {
                 if (newValue.isEmpty() || newValue.matches(digitsPattern)) {
                     checkingLabelConfig = GetAmountLabelConfig(newValue, textInputChecking)
                     textInputChecking = newValue
+                    newValue.toDoubleOrNull()?.toInt()?.let { intVal ->
+                        onCheckingStateChange.invoke(intVal)
+                    }
                 }
             },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -516,31 +561,43 @@ fun PopulateInputTextFields() {
                 //.width(0.20f)
                 .background(lightGray)
         ) {
-            PopulateDropdownMenu(label = "act", minValue = 0, maxValue = 9)
+            PopulateDropdownMenu(
+                label = "act",
+                minValue = 0,
+                maxValue = 9,
+                selectedValue = currentAction.toString(),
+                onOptionSelected = onCurrentActionChange
+            )
         }
     }
 }
 
-fun GetAmountLabelConfig(currentValue: String, previousValue: String) : Pair<String, Color> {
+fun GetAmountLabelConfig(currentValue: String, previousValue: String) : Triple<String, Color, Int> {
     val current = currentValue.toDoubleOrNull()
     val previous = previousValue.toDoubleOrNull()
     if (current != null && previous != null) {
         if (current > previous) {
-            return Pair("▲", Color(0xFF2E7D32))
+            return Triple("▲", Color(0xFF2E7D32), 3)
         } else if (current < previous) {
-            return Pair("▼", Color(0xFFFF0000))
+            return Triple("▼", Color(0xFFFF0000), 1)
         } else {
-            return Pair("➖", Color(0xFF757575))
+            return Triple("➖", Color(0xFF757575), 2)
         }
     }
-    return Pair("➖", Color(0xFF757575))
+    return Triple("➖", Color(0xFF757575), 2)
 }
 
 @Composable
-fun PopulateDropdownMenu(label: String, minValue: Int = 0, maxValue: Int = 31   ) {
+fun PopulateDropdownMenu(
+    label: String,
+    minValue: Int = 0,
+    maxValue: Int = 31,
+    selectedValue: String? = null,
+    onOptionSelected: ((Int) -> Unit)? = null
+) {
     var expanded by remember { mutableStateOf(false) }
     val domList = List(size=maxValue+1) { "${it + minValue}" }
-    var selectedDOM by remember { mutableStateOf(domList[0]) }
+    var selectedDOM by remember { mutableStateOf(selectedValue ?: domList[0]) }
     Row(
 
         //verticalAlignment = Alignment.CenterVertically,
@@ -577,6 +634,9 @@ fun PopulateDropdownMenu(label: String, minValue: Int = 0, maxValue: Int = 31   
                         onClick = {
                             selectedDOM = dom
                             expanded = false
+                            dom.toIntOrNull()?.let { intVal ->
+                                onOptionSelected?.invoke(intVal)
+                            }
                         }
                     )
                 }
@@ -586,7 +646,7 @@ fun PopulateDropdownMenu(label: String, minValue: Int = 0, maxValue: Int = 31   
 }
 
 @Composable
-fun PopulatePredictionButton() {
+fun PopulatePredictionButton(recommender: Recommender? = null, probabilities: List<TransitionProbabilities>, dom: Int = 1, currentAction: Int = 1, savingsState: Int = 2, checkingState: Int = 2) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed = interactionSource.collectIsPressedAsState().value
     val backgroundColor = if (isPressed) Color.Red else Color.Blue
@@ -595,11 +655,9 @@ fun PopulatePredictionButton() {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(60.dp),
-        //    .fillMaxHeight(0.1f),
-        //    .padding(30.dp),
-
-        //horizontalArrangement = Arrangement.spacedBy(5.dp)
+            .height(70.dp)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Box(
             modifier = Modifier
@@ -608,7 +666,30 @@ fun PopulatePredictionButton() {
                 //.background(lightGray)
         ) {
             Button(
-                onClick = {},
+                onClick = {
+                    //Convert to float and pad with zeroes remaining params
+                    val input = arrayOf<Float>(
+                        currentAction.toFloat(),
+                        dom.toFloat(),
+                        savingsState.toFloat(),
+                        checkingState.toFloat(),
+                        0.0F,
+                        0.0F
+                    )
+                    val result = recommender?.predict(input, normalizeSoftmax = true)
+                    Log.d("[PopulatePredictionButton]", "Result: ${result.contentToString()}")
+                    //update transition probabilities with result distribution
+                    if (result?.isNotEmpty() == true && probabilities.size == result.size) {
+                        for ((i, probability) in probabilities.withIndex()) {
+                            probability.probability = result[i]
+                            if (probabilities is SnapshotStateList) {
+                                probabilities[i] = probability.copy(probability = result[i])
+                            } else if (probabilities is MutableList) {
+                                probabilities[i] = probability.copy(probability = result[i])
+                            }
+                        }
+                    }
+                },
                 interactionSource = interactionSource,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = backgroundColor
@@ -676,6 +757,8 @@ data class MarkovTransition(
 fun MarkovChainGraph(
     states: List<MarkovState>,
     transitions: List<MarkovTransition>,
+    transitionProbabilities: List<TransitionProbabilities>,
+    currentState: String,
     modifier: Modifier = Modifier
 ) {
     val textMeasurer = rememberTextMeasurer()
@@ -683,6 +766,11 @@ fun MarkovChainGraph(
     // Zoom and pan state
     var scale by remember { mutableStateOf(0.8f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
+
+    // Obtain state with maximum transition probability
+    val maxProbabilityState = transitionProbabilities.withIndex().maxByOrNull { it.value.probability }?.index
+    Log.d("[MarkovChainGraph]", "Max Probability MaxState: $maxProbabilityState")
+    Log.d("[MarkovChainGraph]", "Prob. Distribution: $transitionProbabilities")
 
     Box(
         modifier = modifier
@@ -726,13 +814,13 @@ fun MarkovChainGraph(
             states.forEach { state ->
                 // Draw State Node
                 drawCircle(
-                    color = Color(0xFF6200EE),
+                    color = if (state.id == "S${maxProbabilityState?.plus(1)}") Color.Green else Color(0xFF6200EE),
                     radius = nodeRadius,
                     center = state.position
                 )
                 // Draw Node Border
                 drawCircle(
-                    color = Color.White,
+                    color = if (state.id == MarkovStateEnum.S0.id) Color.Blue else Color.White,
                     radius = nodeRadius,
                     center = state.position,
                     style = Stroke(width = 2.dp.toPx())
@@ -749,6 +837,21 @@ fun MarkovChainGraph(
                         state.position.y - textLayoutResult.size.height / 2f
                     )
                 )
+                //Draw text field only for root/origin state
+                if (state.id== MarkovStateEnum.S0.id){
+                    val currentStateEnum = MarkovStateEnum.valueOf(currentState)
+                    val textLayoutResult = textMeasurer.measure(
+                        text = "Current State\n$currentStateEnum",
+                        style = TextStyle(color = Color.Blue, fontSize = 14.sp)
+                    )
+                    drawText(
+                        textLayoutResult = textLayoutResult,
+                        topLeft = Offset(
+                            state.position.x - 120 - textLayoutResult.size.width / 2f,
+                            state.position.y + 150 - textLayoutResult.size.height / 2f
+                        )
+                    )
+                }
             }
         }
     }
@@ -899,16 +1002,22 @@ private fun DrawScope.drawSelfLoop(
 }
 
 @Composable
-fun PreviewMarkovChain(currentState: String = "S1", nextState: String = "S2") {
-    /*
-    'Dashboard', 'BENEF_INTERBANK_PAYMENT:RENT',
-    'BENEF_INTERBANK_PAYMENT:FINANCIAMIENTO',
-    'SERVICE_PAYMENT:ELECTRICITY', 'SERVICE_PAYMENT:INTERNET',
-    'SERVICE_PAYMENT:PHONE', 'SERVICE_PAYMENT:NETFLIX',
-    'SERVICE_PAYMENT:WATER', 'PAYMENT_EXPRESS:PURCHASES'],
-     */
+fun PreviewMarkovChain(
+    currentState: Int = 0,
+    probabilities: List<TransitionProbabilities>,
+    nextState: String = "S2",
+    onCurrentStateChange: (Int) -> Unit = {},
+) {
+    var sanitizedCurrentState = currentState
+    if (currentState>MarkovStateEnum.entries.size-1 || currentState<0) {
+        sanitizedCurrentState = 0
+    }
+
+    val markovCurrentState = MarkovStateEnum.valueOf("S$sanitizedCurrentState")
+
+    Log.d("Enum:Size", markovCurrentState.toString())
     val sampleStates = listOf(
-        MarkovState(MarkovStateEnum.S0, Offset(200f, 550f)),
+        MarkovState(MarkovStateEnum.S0, Offset(240f, 550f)),
         MarkovState(MarkovStateEnum.S1, Offset(350f, 100f)),
         MarkovState(MarkovStateEnum.S2, Offset(600f, 100f)),
         MarkovState(MarkovStateEnum.S3, Offset(850f, 150f)),
@@ -920,19 +1029,34 @@ fun PreviewMarkovChain(currentState: String = "S1", nextState: String = "S2") {
         MarkovState(MarkovStateEnum.S9, Offset(350f, 1000f))
     )
 
-    val sampleTransitions = listOf(
-        MarkovTransition(MarkovStateEnum.S0.id, MarkovStateEnum.S1.id, 0.2f),
-        MarkovTransition(MarkovStateEnum.S0.id, MarkovStateEnum.S2.id, 0.6f),
-        MarkovTransition(MarkovStateEnum.S0.id, MarkovStateEnum.S3.id, 0.4f),
-        MarkovTransition(MarkovStateEnum.S0.id, MarkovStateEnum.S4.id, 0.8f),
-        MarkovTransition(MarkovStateEnum.S0.id, MarkovStateEnum.S5.id, 0.2f),
-        MarkovTransition(MarkovStateEnum.S0.id, MarkovStateEnum.S6.id, 0.6f),
-        MarkovTransition(MarkovStateEnum.S0.id, MarkovStateEnum.S7.id, 0.4f),
-        MarkovTransition(MarkovStateEnum.S0.id, MarkovStateEnum.S8.id, 0.8f),
-        MarkovTransition(MarkovStateEnum.S0.id, MarkovStateEnum.S9.id, 0.2f),
-    )
+    val transitions = if (probabilities.isNotEmpty()) {
+        probabilities.mapIndexed { index, prob ->
+            MarkovTransition(
+                fromStateId = prob.fromStateId,
+                toStateId = "S${prob.destinationStateId + 1}",
+                probability = prob.probability
+            )
+        }
+    } else {
+        listOf(
+            MarkovTransition(MarkovStateEnum.S0.id, MarkovStateEnum.S1.id, 0.2f),
+            MarkovTransition(MarkovStateEnum.S0.id, MarkovStateEnum.S2.id, 0.6f),
+            MarkovTransition(MarkovStateEnum.S0.id, MarkovStateEnum.S3.id, 0.4f),
+            MarkovTransition(MarkovStateEnum.S0.id, MarkovStateEnum.S4.id, 0.8f),
+            MarkovTransition(MarkovStateEnum.S0.id, MarkovStateEnum.S5.id, 0.2f),
+            MarkovTransition(MarkovStateEnum.S0.id, MarkovStateEnum.S6.id, 0.6f),
+            MarkovTransition(MarkovStateEnum.S0.id, MarkovStateEnum.S7.id, 0.4f),
+            MarkovTransition(MarkovStateEnum.S0.id, MarkovStateEnum.S8.id, 0.8f),
+            MarkovTransition(MarkovStateEnum.S0.id, MarkovStateEnum.S9.id, 0.2f),
+        )
+    }
 
-    MarkovChainGraph(states = sampleStates, transitions = sampleTransitions)
+    MarkovChainGraph(
+        states = sampleStates,
+        transitions = transitions,
+        currentState = "S$sanitizedCurrentState",
+        transitionProbabilities = probabilities
+    )
 }
 
 @Composable

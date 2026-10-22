@@ -14,6 +14,7 @@ import java.nio.channels.FileChannel
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import kotlin.jvm.Throws
+import kotlin.math.exp
 
 class Recommender(private val context: Context){
     private var interpreter: Interpreter? = null
@@ -51,23 +52,26 @@ class Recommender(private val context: Context){
         Log.d("[Recommender:initializeInterpreter]", "Initialized TF interpreter")
     }
 
-    fun classify(input: Array<Float>): FloatArray {
-        return classify(input.toFloatArray())
+    fun predict(input: Array<Float>, normalizeSoftmax: Boolean = false): FloatArray {
+        return predict(input.toFloatArray(), normalizeSoftmax = normalizeSoftmax)
     }
 
-    fun classify(input: FloatArray): FloatArray {
+    fun predict(input: FloatArray, normalizeSoftmax: Boolean = false): FloatArray {
         val interpreter = this.interpreter
         if (interpreter == null) {
-            Log.e("[Recommender:classify]", "Interpreter is not initialized")
+            Log.e("[Recommender:predict]", "Interpreter is not initialized")
             return floatArrayOf()
         }
         // Tensor shape for sig_dqn_model is [1, 6] FLOAT32 for input and [1, 9] FLOAT32 for output
         val input2D = arrayOf(input)
         val output = Array(1) { FloatArray(9) }
+        //Log.d("[Recommender:predict]", "Running inference on input: ${input.contentToString()}")
         interpreter.run(input2D, output)
-        val result = output[0]
-        Log.d("[Recommender:classify]", "Result Q-values: ${result.contentToString()}")
-        return result
+        Log.d("[Recommender:predict]", "Result Q-values: ${output[0].contentToString()}")
+        if (normalizeSoftmax) {
+            return softmax(output[0])
+        }
+        return output[0]
     }
 
     fun createStringByteBuffer(text: String): ByteBuffer {
@@ -97,4 +101,12 @@ class Recommender(private val context: Context){
         val declaredLength = fileDescriptor.declaredLength
         return fileChannel.map(FileChannel.MapMode.READ_ONLY, startOffset, declaredLength)
     }
+
+    fun softmax(logits: FloatArray): FloatArray {
+        val maxLogit = logits.maxOrNull() ?: 0.0f
+        val exponentials = logits.map { exp(it - maxLogit) }
+        val sumExponentials = exponentials.sum()
+        return exponentials.map { it / sumExponentials }.toFloatArray()
+    }
+
 }

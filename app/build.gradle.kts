@@ -1,5 +1,3 @@
-import com.android.build.api.dsl.AaptOptions
-
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -9,12 +7,9 @@ android {
     namespace = "com.gilsonfrias.recommenderpoc"
     compileSdk = 37
 
-
     androidResources {
-            noCompress("tflite")
+        noCompress += "tflite"
     }
-
-
 
     defaultConfig {
         applicationId = "com.gilsonfrias.recommenderpoc"
@@ -54,8 +49,12 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.material3)
     implementation(libs.compose.material.icons)
+    implementation(libs.core.ktx)
     implementation(libs.play.services.tasks)
     implementation(libs.tensorflow.lite)
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    annotationProcessor(libs.androidx.room.compiler)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)
