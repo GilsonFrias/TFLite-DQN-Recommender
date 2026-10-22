@@ -277,6 +277,8 @@ fun InferenceTrainingContent(
     onSavingsStateChange: (Int) -> Unit = {},
     onCheckingStateChange: (Int) -> Unit = {}
 ) {
+    var predictionVersion by remember { mutableStateOf(0) }
+
     Column(
         modifier = Modifier
             .fillMaxHeight(1f),
@@ -300,10 +302,17 @@ fun InferenceTrainingContent(
             dom = dom,
             currentAction = currentAction,
             savingsState = savingsState,
-            checkingState = checkingState
+            checkingState = checkingState,
+            onPredictionMade = {
+                predictionVersion++
+            }
         )
         HorizontalDivider(thickness = 1.dp)
-        PreviewMarkovChain(currentState = currentAction, probabilities = probabilities)
+        PreviewMarkovChain(
+            currentState = currentAction,
+            probabilities = probabilities.toList(),
+            predictionVersion = predictionVersion
+        )
         HorizontalDivider(thickness = 1.dp)
         PopulateTrainingButton()
     }
@@ -646,7 +655,15 @@ fun PopulateDropdownMenu(
 }
 
 @Composable
-fun PopulatePredictionButton(recommender: Recommender? = null, probabilities: List<TransitionProbabilities>, dom: Int = 1, currentAction: Int = 1, savingsState: Int = 2, checkingState: Int = 2) {
+fun PopulatePredictionButton(
+    recommender: Recommender? = null,
+    probabilities: List<TransitionProbabilities>,
+    dom: Int = 1,
+    currentAction: Int = 1,
+    savingsState: Int = 2,
+    checkingState: Int = 2,
+    onPredictionMade: ((List<TransitionProbabilities>) -> Unit)? = null
+) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed = interactionSource.collectIsPressedAsState().value
     val backgroundColor = if (isPressed) Color.Red else Color.Blue
@@ -672,12 +689,12 @@ fun PopulatePredictionButton(recommender: Recommender? = null, probabilities: Li
                         currentAction.toFloat(),
                         dom.toFloat(),
                         savingsState.toFloat(),
-                        checkingState.toFloat(),
+                        0.0F,//checkingState.toFloat(),
                         0.0F,
                         0.0F
                     )
                     val result = recommender?.predict(input, normalizeSoftmax = true)
-                    Log.d("[PopulatePredictionButton]", "Result: ${result.contentToString()}")
+                    Log.d("[PopulatePredictionButton]", "Result: ${result?.contentToString()}")
                     //update transition probabilities with result distribution
                     if (result?.isNotEmpty() == true && probabilities.size == result.size) {
                         for ((i, probability) in probabilities.withIndex()) {
@@ -688,6 +705,7 @@ fun PopulatePredictionButton(recommender: Recommender? = null, probabilities: Li
                                 probabilities[i] = probability.copy(probability = result[i])
                             }
                         }
+                        onPredictionMade?.invoke(probabilities)
                     }
                 },
                 interactionSource = interactionSource,
@@ -1007,6 +1025,7 @@ fun PreviewMarkovChain(
     probabilities: List<TransitionProbabilities>,
     nextState: String = "S2",
     onCurrentStateChange: (Int) -> Unit = {},
+    predictionVersion: Int = 0
 ) {
     var sanitizedCurrentState = currentState
     if (currentState>MarkovStateEnum.entries.size-1 || currentState<0) {

@@ -67,6 +67,7 @@ class Recommender(private val context: Context){
         val output = Array(1) { FloatArray(9) }
         //Log.d("[Recommender:predict]", "Running inference on input: ${input.contentToString()}")
         interpreter.run(input2D, output)
+        Log.d("[Recommender:predict]", "Input features: ${input.contentToString()}")
         Log.d("[Recommender:predict]", "Result Q-values: ${output[0].contentToString()}")
         if (normalizeSoftmax) {
             return softmax(output[0])
