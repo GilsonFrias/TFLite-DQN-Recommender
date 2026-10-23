@@ -86,6 +86,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.input.KeyboardType
 import com.gilsonfrias.recommenderpoc.ui.theme.MyApplicationTheme
 import android.util.Log
+import androidx.compose.runtime.MutableState
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import kotlin.math.atan2
@@ -95,6 +96,10 @@ import kotlin.math.sqrt
 import kotlin.text.toIntOrNull
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.runtime.snapshots.SnapshotStateList
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import androidx.compose.runtime.collectAsState
 
 enum class NavigationDrawerSection(val title: String) {
     INFERENCE_TRAINING("Inference / Training"),
@@ -105,7 +110,8 @@ enum class NavigationDrawerSection(val title: String) {
 class MainActivity : ComponentActivity() {
 
     private var recommender = Recommender(this)
-    private var probabilities = buildTransitionProbabilities().toMutableStateList()
+    private var _probabilities = MutableStateFlow<List<TransitionProbabilities>>(buildTransitionProbabilities()) //.toMutableStateList()
+    private var transitionProbabilities: StateFlow<List<TransitionProbabilities>> = _probabilities.asStateFlow()
 
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -120,6 +126,8 @@ class MainActivity : ComponentActivity() {
                 var currentAction by remember { mutableStateOf(0) }
                 var savingsState by remember { mutableStateOf(2) }
                 var checkingState by remember { mutableStateOf(2) }
+                var predictionVersion by remember { mutableStateOf(0) }
+
 
                 ModalNavigationDrawer(
                     drawerState = drawerState,
@@ -216,7 +224,7 @@ class MainActivity : ComponentActivity() {
                                 NavigationDrawerSection.INFERENCE_TRAINING -> {
                                     InferenceTrainingContent(
                                         recommender = recommender,
-                                        probabilities = probabilities,
+                                        probabilities = _probabilities,
                                         dom = dom,
                                         currentAction = currentAction,
                                         savingsState = savingsState,
@@ -224,7 +232,8 @@ class MainActivity : ComponentActivity() {
                                         onDomChange = { dom = it },
                                         onCurrentActionChange = { currentAction = it },
                                         onSavingsStateChange = { savingsState = it },
-                                        onCheckingStateChange = { checkingState = it }
+                                        onCheckingStateChange = { checkingState = it },
+                                        onPredictionMade = { predictionVersion = it }
                                     )
                                 }
                                 NavigationDrawerSection.MODEL_UPDATE -> {
@@ -267,7 +276,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun InferenceTrainingContent(
     recommender: Recommender? = null,
-    probabilities: List<TransitionProbabilities> = remember { buildTransitionProbabilities().toMutableStateList() },
+    probabilities: MutableStateFlow<List<TransitionProbabilities>> ,//List<TransitionProbabilities> = remember { buildTransitionProbabilities().toMutableStateList() },
     dom: Int = 1,
     currentAction: Int = 3,
     savingsState: Int = 2,
@@ -275,7 +284,8 @@ fun InferenceTrainingContent(
     onDomChange: (Int) -> Unit = {},
     onCurrentActionChange: (Int) -> Unit = {},
     onSavingsStateChange: (Int) -> Unit = {},
-    onCheckingStateChange: (Int) -> Unit = {}
+    onCheckingStateChange: (Int) -> Unit = {},
+    onPredictionMade: (Int) -> Unit = {}
 ) {
     var predictionVersion by remember { mutableStateOf(0) }
 
@@ -303,14 +313,15 @@ fun InferenceTrainingContent(
             currentAction = currentAction,
             savingsState = savingsState,
             checkingState = checkingState,
-            onPredictionMade = {
-                predictionVersion++
+            predictionState = { version ->
+                predictionVersion = version
+                onPredictionMade(version)
             }
         )
         HorizontalDivider(thickness = 1.dp)
         PreviewMarkovChain(
             currentState = currentAction,
-            probabilities = probabilities.toList(),
+            probabilities = probabilities,
             predictionVersion = predictionVersion
         )
         HorizontalDivider(thickness = 1.dp)
@@ -657,12 +668,13 @@ fun PopulateDropdownMenu(
 @Composable
 fun PopulatePredictionButton(
     recommender: Recommender? = null,
-    probabilities: List<TransitionProbabilities>,
+    probabilities: MutableStateFlow<List<TransitionProbabilities>> ,//List<TransitionProbabilities> = remember { buildTransitionProbabilities().toMutableStateList() },><TransitionProbabilities>,
     dom: Int = 1,
     currentAction: Int = 1,
     savingsState: Int = 2,
     checkingState: Int = 2,
-    onPredictionMade: ((List<TransitionProbabilities>) -> Unit)? = null
+    //predictionState: Int = 0
+    predictionState: ((Int) -> Unit)? = null
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed = interactionSource.collectIsPressedAsState().value
@@ -696,16 +708,13 @@ fun PopulatePredictionButton(
                     val result = recommender?.predict(input, normalizeSoftmax = true)
                     Log.d("[PopulatePredictionButton]", "Result: ${result?.contentToString()}")
                     //update transition probabilities with result distribution
-                    if (result?.isNotEmpty() == true && probabilities.size == result.size) {
-                        for ((i, probability) in probabilities.withIndex()) {
-                            probability.probability = result[i]
-                            if (probabilities is SnapshotStateList) {
-                                probabilities[i] = probability.copy(probability = result[i])
-                            } else if (probabilities is MutableList) {
-                                probabilities[i] = probability.copy(probability = result[i])
-                            }
+                    if (result?.isNotEmpty() == true && probabilities.value.size == result.size) {
+                        val updatedList = probabilities.value.mapIndexed { i, probability ->
+                            probability.copy(probability = result[i])
                         }
-                        onPredictionMade?.invoke(probabilities)
+                        probabilities.value = updatedList
+                        val maxIdx = updatedList.withIndex().maxByOrNull { it.value.probability }?.index ?: 0
+                        predictionState?.invoke(maxIdx)
                     }
                 },
                 interactionSource = interactionSource,
@@ -1022,7 +1031,7 @@ private fun DrawScope.drawSelfLoop(
 @Composable
 fun PreviewMarkovChain(
     currentState: Int = 0,
-    probabilities: List<TransitionProbabilities>,
+    probabilities: MutableStateFlow<List<TransitionProbabilities>>,
     nextState: String = "S2",
     onCurrentStateChange: (Int) -> Unit = {},
     predictionVersion: Int = 0
@@ -1034,7 +1043,7 @@ fun PreviewMarkovChain(
 
     val markovCurrentState = MarkovStateEnum.valueOf("S$sanitizedCurrentState")
 
-    Log.d("Enum:Size", markovCurrentState.toString())
+    Log.d("[PreviewMarkovChain]", "Recomposing version: $predictionVersion, state: $markovCurrentState")
     val sampleStates = listOf(
         MarkovState(MarkovStateEnum.S0, Offset(240f, 550f)),
         MarkovState(MarkovStateEnum.S1, Offset(350f, 100f)),
@@ -1048,8 +1057,8 @@ fun PreviewMarkovChain(
         MarkovState(MarkovStateEnum.S9, Offset(350f, 1000f))
     )
 
-    val transitions = if (probabilities.isNotEmpty()) {
-        probabilities.mapIndexed { index, prob ->
+    val transitions = if (probabilities.collectAsState().value.isNotEmpty()) {
+        probabilities.collectAsState().value.mapIndexed { index, prob ->
             MarkovTransition(
                 fromStateId = prob.fromStateId,
                 toStateId = "S${prob.destinationStateId + 1}",
@@ -1074,7 +1083,7 @@ fun PreviewMarkovChain(
         states = sampleStates,
         transitions = transitions,
         currentState = "S$sanitizedCurrentState",
-        transitionProbabilities = probabilities
+        transitionProbabilities = probabilities.collectAsState().value
     )
 }
 
