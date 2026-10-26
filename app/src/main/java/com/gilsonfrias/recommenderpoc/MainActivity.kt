@@ -868,13 +868,13 @@ fun MarkovChainGraph(
                 if (state.id== MarkovStateEnum.S0.id){
                     val currentStateEnum = MarkovStateEnum.valueOf(currentState)
                     val textLayoutResult = textMeasurer.measure(
-                        text = "Current State\n$currentStateEnum",
+                        text = "Current State\naction a(As(t+0)):\n$currentStateEnum",
                         style = TextStyle(color = Color.Blue, fontSize = 14.sp)
                     )
                     drawText(
                         textLayoutResult = textLayoutResult,
                         topLeft = Offset(
-                            state.position.x - 120 - textLayoutResult.size.width / 2f,
+                            state.position.x - 110 - textLayoutResult.size.width / 2f,
                             state.position.y + 150 - textLayoutResult.size.height / 2f
                         )
                     )
