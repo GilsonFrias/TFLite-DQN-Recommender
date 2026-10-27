@@ -597,9 +597,9 @@ fun GetAmountLabelConfig(currentValue: String, previousValue: String) : Triple<S
     val previous = previousValue.toDoubleOrNull()
     if (current != null && previous != null) {
         if (current > previous) {
-            return Triple("▲", Color(0xFF2E7D32), 3)
+            return Triple("▲", Color(0xFF2E7D32), 1)
         } else if (current < previous) {
-            return Triple("▼", Color(0xFFFF0000), 1)
+            return Triple("▼", Color(0xFFFF0000), 3)
         } else {
             return Triple("➖", Color(0xFF757575), 2)
         }
@@ -790,6 +790,9 @@ fun MarkovChainGraph(
 ) {
     val textMeasurer = rememberTextMeasurer()
 
+    // The minimum probability to consider a potential nex-state prediction
+    val confidenceThreshold = 0.10f
+
     // Zoom and pan state
     var scale by remember { mutableStateOf(0.8f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
@@ -818,8 +821,11 @@ fun MarkovChainGraph(
             val nodeRadius = 40.dp.toPx()
             val stateMap = states.associateBy { it.id }
 
+            //TODO: Properly validate that transitions and transitionsProbabilities
+            //have the same size and order
+
             // Step 1: Draw Transitions (Edges)
-            transitions.forEach { transition ->
+            transitions.forEachIndexed { index, transition ->
                 val fromNode = stateMap[transition.fromStateId]
                 val toNode = stateMap[transition.toStateId]
 
@@ -832,13 +838,13 @@ fun MarkovChainGraph(
                         val hasReverse = transitions.any {
                             it.fromStateId == toNode.id && it.toStateId == fromNode.id
                         }
-                        drawEdge(fromNode.position, toNode.position, nodeRadius, transition.probability, hasReverse, textMeasurer)
+                        drawEdge(fromNode.position, toNode.position, nodeRadius, transitionProbabilities[index].probability, hasReverse, textMeasurer)
                     }
                 }
             }
 
             // Step 2: Draw States (Nodes)
-            states.forEach { state ->
+            states.forEachIndexed { index, state ->
                 // Draw State Node
                 drawCircle(
                     color = if (state.id == "S${maxProbabilityState?.plus(1)}") Color.Green else Color(0xFF6200EE),
@@ -846,11 +852,17 @@ fun MarkovChainGraph(
                     center = state.position
                 )
                 // Draw Node Border
+                var safeIndex = 0
+                safeIndex = if (index <= 0) {
+                    0
+                } else {
+                    index-1
+                }
                 drawCircle(
-                    color = if (state.id == MarkovStateEnum.S0.id) Color.Blue else Color.White,
+                    color = if (transitionProbabilities[safeIndex].probability > confidenceThreshold) Color.Green else Color.White,
                     radius = nodeRadius,
                     center = state.position,
-                    style = Stroke(width = 2.dp.toPx())
+                    style = Stroke(width = 3.dp.toPx())
                 )
                 // Draw State Name Text
                 val textLayoutResult = textMeasurer.measure(
@@ -868,7 +880,7 @@ fun MarkovChainGraph(
                 if (state.id== MarkovStateEnum.S0.id){
                     val currentStateEnum = MarkovStateEnum.valueOf(currentState)
                     val textLayoutResult = textMeasurer.measure(
-                        text = "Current State\naction a(As(t+0)):\n$currentStateEnum",
+                        text = "Current State\naction: $currentStateEnum",
                         style = TextStyle(color = Color.Blue, fontSize = 14.sp)
                     )
                     drawText(
