@@ -862,7 +862,7 @@ fun MarkovChainGraph(
                     color = if (transitionProbabilities[safeIndex].probability > confidenceThreshold) Color.Green else Color.White,
                     radius = nodeRadius,
                     center = state.position,
-                    style = Stroke(width = 3.dp.toPx())
+                    style = Stroke(width = 4.dp.toPx())
                 )
                 // Draw State Name Text
                 val textLayoutResult = textMeasurer.measure(
