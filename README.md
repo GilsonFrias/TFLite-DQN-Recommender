@@ -26,8 +26,8 @@ The mobile application demonstrates real-time state inference, local experience 
 ### Key App Features
 - **Real-Time On-Device Inference**: Runs TFLite model inference (`sig_dqn_model.tflite`) directly on mobile hardware without requiring cloud round-trips.
 - **Interactive Markov Chain Graph**: Renders a dynamic Compose canvas state graph depicting transition probabilities from the current state $A_{s(t+0)}$ to candidate target actions $A_{s(t+1)}$.
-- **Local Experience Replay & On-Device Training**: Supports local memory buffer collection and model tuning to adapt to individual user behavior.
-- **Model Lifecycle Management**: Allows toggling, updating online, or importing new local `.tflite` model files.
+- **(Work in progress) Local Experience Replay & On-Device Training**: Supports local memory buffer collection and model tuning to adapt to individual user behavior.
+- **(Work in progress) Model Lifecycle Management**: Allows toggling, updating online, or importing new local `.tflite` model files.
 
 ---
 
